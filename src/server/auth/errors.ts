@@ -133,6 +133,13 @@ export class InvalidTokenError extends OAuthError {
 }
 
 /**
+ * Invalid target error - The requested resource is invalid, missing, unknown, or malformed.
+ */
+export class InvalidTargetError extends OAuthError {
+    static errorCode = 'invalid_target';
+}
+
+/**
  * Method not allowed error - The HTTP method used is not allowed for this endpoint.
  * (Custom, non-standard error)
  */
@@ -199,5 +206,6 @@ export const OAUTH_ERRORS = {
     [MethodNotAllowedError.errorCode]: MethodNotAllowedError,
     [TooManyRequestsError.errorCode]: TooManyRequestsError,
     [InvalidClientMetadataError.errorCode]: InvalidClientMetadataError,
-    [InsufficientScopeError.errorCode]: InsufficientScopeError
+    [InsufficientScopeError.errorCode]: InsufficientScopeError,
+    [InvalidTargetError.errorCode]: InvalidTargetError
 } as const;

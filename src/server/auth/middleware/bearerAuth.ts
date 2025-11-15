@@ -2,6 +2,7 @@ import { RequestHandler } from 'express';
 import { InsufficientScopeError, InvalidTokenError, OAuthError, ServerError } from '../errors.js';
 import { OAuthTokenVerifier } from '../provider.js';
 import { AuthInfo } from '../types.js';
+import { checkResourceAllowed } from '../../../shared/auth-utils.js';
 
 export type BearerAuthMiddlewareOptions = {
     /**
@@ -13,6 +14,11 @@ export type BearerAuthMiddlewareOptions = {
      * Optional scopes that the token must have.
      */
     requiredScopes?: string[];
+
+    /**
+     * Optional resource URL that the token must be intended for.
+     */
+    requiredResourceUrl?: URL;
 
     /**
      * Optional resource metadata URL to include in WWW-Authenticate header.
@@ -37,7 +43,12 @@ declare module 'express-serve-static-core' {
  * If resourceMetadataUrl is provided, it will be included in the WWW-Authenticate header
  * for 401 responses as per the OAuth 2.0 Protected Resource Metadata spec.
  */
-export function requireBearerAuth({ verifier, requiredScopes = [], resourceMetadataUrl }: BearerAuthMiddlewareOptions): RequestHandler {
+export function requireBearerAuth({
+    verifier,
+    requiredScopes = [],
+    resourceMetadataUrl,
+    requiredResourceUrl
+}: BearerAuthMiddlewareOptions): RequestHandler {
     return async (req, res, next) => {
         try {
             const authHeader = req.headers.authorization;
@@ -58,6 +69,16 @@ export function requireBearerAuth({ verifier, requiredScopes = [], resourceMetad
 
                 if (!hasAllScopes) {
                     throw new InsufficientScopeError('Insufficient scope');
+                }
+            }
+
+            // Check if the token is intended for this resource
+            if (requiredResourceUrl) {
+                if (!authInfo.resource) {
+                    throw new InvalidTokenError('Token resource indicator is required');
+                }
+                if (!checkResourceAllowed({ requestedResource: authInfo.resource, configuredResource: requiredResourceUrl })) {
+                    throw new InvalidTokenError('Invalid access token');
                 }
             }
 

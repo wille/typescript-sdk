@@ -6,7 +6,7 @@ import express, { Request, Response } from 'express';
 import { AuthInfo } from '../../server/auth/types.js';
 import { createOAuthMetadata, mcpAuthRouter } from '../../server/auth/router.js';
 import { resourceUrlFromServerUrl } from '../../shared/auth-utils.js';
-import { InvalidRequestError } from '../../server/auth/errors.js';
+import { InvalidRequestError, InvalidTargetError } from '../../server/auth/errors.js';
 
 export class DemoInMemoryClientsStore implements OAuthRegisteredClientsStore {
     private clients = new Map<string, OAuthClientInformationFull>();
@@ -92,7 +92,7 @@ export class DemoInMemoryAuthProvider implements OAuthServerProvider {
         }
 
         if (this.validateResource && !this.validateResource(codeData.params.resource)) {
-            throw new Error(`Invalid resource: ${codeData.params.resource}`);
+            throw new InvalidTargetError(`Invalid resource: ${codeData.params.resource}`);
         }
 
         this.codes.delete(authorizationCode);

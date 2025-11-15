@@ -190,6 +190,216 @@ describe('requireBearerAuth middleware', () => {
         expect(mockResponse.json).not.toHaveBeenCalled();
     });
 
+    describe('with requiredResourceUrl', () => {
+        const requiredResourceUrl = new URL('https://api.example.com/resource');
+
+        it('should reject token when resource is missing', async () => {
+            const authInfo: AuthInfo = {
+                token: 'valid-token',
+                clientId: 'client-123',
+                scopes: ['read', 'write'],
+                expiresAt: Math.floor(Date.now() / 1000) + 3600
+                // resource is missing
+            };
+            mockVerifyAccessToken.mockResolvedValue(authInfo);
+
+            mockRequest.headers = {
+                authorization: 'Bearer valid-token'
+            };
+
+            const middleware = requireBearerAuth({
+                verifier: mockVerifier,
+                requiredResourceUrl
+            });
+
+            await middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+
+            expect(mockVerifyAccessToken).toHaveBeenCalledWith('valid-token');
+            expect(mockResponse.status).toHaveBeenCalledWith(401);
+            expect(mockResponse.set).toHaveBeenCalledWith('WWW-Authenticate', expect.stringContaining('Bearer error="invalid_token"'));
+            expect(mockResponse.json).toHaveBeenCalledWith(
+                expect.objectContaining({ error: 'invalid_token', error_description: 'Token resource indicator is required' })
+            );
+            expect(nextFunction).not.toHaveBeenCalled();
+        });
+
+        it('should reject token when resource origin does not match', async () => {
+            const authInfo: AuthInfo = {
+                token: 'valid-token',
+                clientId: 'client-123',
+                scopes: ['read', 'write'],
+                expiresAt: Math.floor(Date.now() / 1000) + 3600,
+                resource: new URL('https://different.example.com/resource')
+            };
+            mockVerifyAccessToken.mockResolvedValue(authInfo);
+
+            mockRequest.headers = {
+                authorization: 'Bearer valid-token'
+            };
+
+            const middleware = requireBearerAuth({
+                verifier: mockVerifier,
+                requiredResourceUrl
+            });
+
+            await middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+
+            expect(mockVerifyAccessToken).toHaveBeenCalledWith('valid-token');
+            expect(mockResponse.status).toHaveBeenCalledWith(401);
+            expect(mockResponse.set).toHaveBeenCalledWith('WWW-Authenticate', expect.stringContaining('Bearer error="invalid_token"'));
+            expect(mockResponse.json).toHaveBeenCalledWith(
+                expect.objectContaining({ error: 'invalid_token', error_description: 'Invalid access token' })
+            );
+            expect(nextFunction).not.toHaveBeenCalled();
+        });
+
+        it('should reject token when resource path does not match', async () => {
+            const authInfo: AuthInfo = {
+                token: 'valid-token',
+                clientId: 'client-123',
+                scopes: ['read', 'write'],
+                expiresAt: Math.floor(Date.now() / 1000) + 3600,
+                resource: new URL('https://api.example.com/different-resource')
+            };
+            mockVerifyAccessToken.mockResolvedValue(authInfo);
+
+            mockRequest.headers = {
+                authorization: 'Bearer valid-token'
+            };
+
+            const middleware = requireBearerAuth({
+                verifier: mockVerifier,
+                requiredResourceUrl
+            });
+
+            await middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+
+            expect(mockVerifyAccessToken).toHaveBeenCalledWith('valid-token');
+            expect(mockResponse.status).toHaveBeenCalledWith(401);
+            expect(mockResponse.set).toHaveBeenCalledWith('WWW-Authenticate', expect.stringContaining('Bearer error="invalid_token"'));
+            expect(mockResponse.json).toHaveBeenCalledWith(
+                expect.objectContaining({ error: 'invalid_token', error_description: 'Invalid access token' })
+            );
+            expect(nextFunction).not.toHaveBeenCalled();
+        });
+
+        it('should accept token when resource matches exactly', async () => {
+            const mcpServerUrl = new URL('https://api.example.com/mcp');
+            const authInfo: AuthInfo = {
+                token: 'valid-token',
+                clientId: 'client-123',
+                scopes: ['read', 'write'],
+                expiresAt: Math.floor(Date.now() / 1000) + 3600,
+                resource: mcpServerUrl
+            };
+            mockVerifyAccessToken.mockResolvedValue(authInfo);
+
+            mockRequest.headers = {
+                authorization: 'Bearer valid-token'
+            };
+
+            const middleware = requireBearerAuth({
+                verifier: mockVerifier,
+                requiredResourceUrl: mcpServerUrl
+            });
+
+            await middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+
+            expect(mockVerifyAccessToken).toHaveBeenCalledWith('valid-token');
+            expect(mockRequest.auth).toEqual(authInfo);
+            expect(nextFunction).toHaveBeenCalled();
+            expect(mockResponse.status).not.toHaveBeenCalled();
+            expect(mockResponse.json).not.toHaveBeenCalled();
+        });
+
+        it('should accept token when resource path is a subpath of required resource', async () => {
+            const authInfo: AuthInfo = {
+                token: 'valid-token',
+                clientId: 'client-123',
+                scopes: ['read', 'write'],
+                expiresAt: Math.floor(Date.now() / 1000) + 3600,
+                resource: new URL('https://api.example.com/resource/subpath')
+            };
+            mockVerifyAccessToken.mockResolvedValue(authInfo);
+
+            mockRequest.headers = {
+                authorization: 'Bearer valid-token'
+            };
+
+            const middleware = requireBearerAuth({
+                verifier: mockVerifier,
+                requiredResourceUrl
+            });
+
+            await middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+
+            expect(mockVerifyAccessToken).toHaveBeenCalledWith('valid-token');
+            expect(mockRequest.auth).toEqual(authInfo);
+            expect(nextFunction).toHaveBeenCalled();
+            expect(mockResponse.status).not.toHaveBeenCalled();
+            expect(mockResponse.json).not.toHaveBeenCalled();
+        });
+
+        it('should accept token when resource path has trailing slash and matches', async () => {
+            const authInfo: AuthInfo = {
+                token: 'valid-token',
+                clientId: 'client-123',
+                scopes: ['read', 'write'],
+                expiresAt: Math.floor(Date.now() / 1000) + 3600,
+                resource: new URL('https://api.example.com/resource/')
+            };
+            mockVerifyAccessToken.mockResolvedValue(authInfo);
+
+            mockRequest.headers = {
+                authorization: 'Bearer valid-token'
+            };
+
+            const middleware = requireBearerAuth({
+                verifier: mockVerifier,
+                requiredResourceUrl
+            });
+
+            await middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+
+            expect(mockVerifyAccessToken).toHaveBeenCalledWith('valid-token');
+            expect(mockRequest.auth).toEqual(authInfo);
+            expect(nextFunction).toHaveBeenCalled();
+            expect(mockResponse.status).not.toHaveBeenCalled();
+            expect(mockResponse.json).not.toHaveBeenCalled();
+        });
+
+        it('should reject token when resource path is shorter than required resource path', async () => {
+            const requiredResourceUrlWithPath = new URL('https://api.example.com/resource/subpath');
+            const authInfo: AuthInfo = {
+                token: 'valid-token',
+                clientId: 'client-123',
+                scopes: ['read', 'write'],
+                expiresAt: Math.floor(Date.now() / 1000) + 3600,
+                resource: new URL('https://api.example.com/resource')
+            };
+            mockVerifyAccessToken.mockResolvedValue(authInfo);
+
+            mockRequest.headers = {
+                authorization: 'Bearer valid-token'
+            };
+
+            const middleware = requireBearerAuth({
+                verifier: mockVerifier,
+                requiredResourceUrl: requiredResourceUrlWithPath
+            });
+
+            await middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+
+            expect(mockVerifyAccessToken).toHaveBeenCalledWith('valid-token');
+            expect(mockResponse.status).toHaveBeenCalledWith(401);
+            expect(mockResponse.set).toHaveBeenCalledWith('WWW-Authenticate', expect.stringContaining('Bearer error="invalid_token"'));
+            expect(mockResponse.json).toHaveBeenCalledWith(
+                expect.objectContaining({ error: 'invalid_token', error_description: 'Invalid access token' })
+            );
+            expect(nextFunction).not.toHaveBeenCalled();
+        });
+    });
+
     it('should return 401 when no Authorization header is present', async () => {
         const middleware = requireBearerAuth({ verifier: mockVerifier });
         await middleware(mockRequest as Request, mockResponse as Response, nextFunction);
